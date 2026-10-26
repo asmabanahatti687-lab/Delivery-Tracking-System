@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrackPro - Delivery Tracking System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        amber: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            200: '#fde68a',
+                            300: '#fcd34d',
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f',
+                        },
+                        darkslate: '#1f2937',
+                        deepnavy: '#111827'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Styling & Scrollbars */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #f59e0b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d97706;
+        }
+        
+        /* Pulse & Route Animation */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .pulse-effect {
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+
+        @keyframes moveVehicle {
+            0% { stroke-dashoffset: 1000; }
+            100% { stroke-dashoffset: 0; }
+        }
+        
+        .printable-area {
+            display: block;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printSection, #printSection * {
+                visibility: visible;
+            }
+            #printSection {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Top Navigation Header -->
+    <header class="bg-deepnavy text-white sticky top-0 z-30 shadow-md border-b border-gray-800">
+        <div class="px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <button id="sidebarToggle" class="lg:hidden text-gray-300 hover:text-amber-400 p-2 rounded-lg focus:outline-none">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                <div class="flex items-center gap-2 cursor-pointer" onclick="switchTab('public-tracking')">
+                    <div class="w-10 h-10 bg-gradient-to-tr from-amber-500 to-amber-300 rounded-xl flex items-center justify-center text-deepnavy font-black text-xl shadow-lg">
+                        <i class="fa-solid fa-truck-fast"></i>
+                    </div>
+                    <div>
+                        <span class="text-xl font-bold tracking-tight text-white">Track<span class="text-amber-400">Pro</span></span>
+                        <span class="hidden sm:inline-block text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full ml-2">v2.4 Live</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role Selector & Quick User Actions -->
+            <div class="flex items-center gap-3">
+                <!-- Simulation Role Switcher Dropdown -->
+                <div class="relative bg-gray-800 border border-gray-700 rounded-lg p-1 flex items-center text-xs">
+                    <span class="text-gray-400 hidden sm:inline px-2 font-medium"><i class="fa-solid fa-user-shield text-amber-400 mr-1"></i> Role:</span>
+                    <select id="roleSwitcher" onchange="handleRoleChange(this.value)" class="bg-gray-900 text-amber-400 font-semibold rounded px-2 py-1 outline-none border-none cursor-pointer">
+                        <option value="Admin">Admin View</option>
+                        <option value="Staff">Staff / Courier View</option>
+                        <option value="Customer">Customer View</option>
+                    </select>
+                </div>
+
+                <!-- Notification Bell -->
+                <div class="relative">
+                    <button id="notifBellBtn" onclick="toggleNotifications()" class="relative p-2 text-gray-300 hover:text-amber-400 hover:bg-gray-800 rounded-lg transition-all">
+                        <i class="fa-solid fa-bell text-lg"></i>
+                        <span id="notifBadge" class="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">3</span>
+                    </button>
+                    <!-- Notification Dropdown -->
+                    <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                        <div class="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                            <h4 class="font-bold text-sm text-gray-800">Notifications</h4>
+                            <button onclick="clearNotifications()" class="text-xs text-amber-600 hover:underline">Mark all read</button>
+                        </div>
+                        <div id="notifList" class="max-h-64 overflow-y-auto divide-y divide-gray-100 text-xs">
+                            <!-- Dynamic items -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Profile Modal Trigger / Auth Button -->
+                <div id="authUserMenu" class="flex items-center gap-2">
+                    <button onclick="openAuthModal()" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-3 py-1.5 rounded-lg text-sm transition-all shadow-md">
+                        <i class="fa-solid fa-right-to-bracket mr-1"></i> Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Application Container -->
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="bg-darkslate text-gray-300 w-64 flex-shrink-0 fixed lg:static inset-y-0 left-0 z-20 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col justify-between border-r border-gray-800 pt-16 lg:pt-0">
+            <div class="p-4 space-y-6">
+                <!-- User Quick Info -->
+                <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700/50 flex items-center gap-3">
+                    <div id="sidebarUserAvatar" class="w-10 h-10 rounded-full bg-amber-500 text-deepnavy flex items-center justify-center font-bold text-lg">
+                        A
+                    </div>
+                    <div class="overflow-hidden">
+                        <p id="sidebarUserName" class="text-sm font-bold text-white truncate">Administrator</p>
+                        <p id="sidebarUserRole" class="text-xs text-amber-400 font-medium">Role: Admin</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="space-y-1" id="navLinksContainer">
+                    <button onclick="switchTab('public-tracking')" data-tab="public-tracking" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-amber-400 bg-gray-800">
+                        <i class="fa-solid fa-magnifying-glass text-amber-400 w-5"></i> Public Tracking
+                    </button>
+                    <button onclick="switchTab('dashboard')" data-tab="dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-800 hover:text-white">
+                        <i class="fa-solid fa-chart-pie text-gray-400 w-5"></i> Dashboard
+                    </button>
+                    <button onclick="switchTab('packages')" data-tab="packages" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-800 hover:text-white">
+                        <i class="fa-solid fa-box text-gray-400 w-5"></i> Packages Admin
+                    </button>
+                    <button onclick="switchTab('couriers')" data-tab="couriers" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-800 hover:text-white">
+                        <i class="fa-solid fa-id-card text-gray-400 w-5"></i> Couriers
+                    </button>
+                    <button onclick="switchTab('routes')" data-tab="routes" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-800 hover:text-white">
+                        <i class="fa-solid fa-route text-gray-400 w-5"></i> Delivery Routes
+                    </button>
+                    <button onclick="switchTab('reports')" data-tab="reports" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-800 hover:text-white">
+                        <i class="fa-solid fa-file-invoice text-gray-400 w-5"></i> Reports & Data
+                    </button>
+                    <button onclick="switchTab('profile')" data-tab="profile" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-gray-800 hover:text-white">
+                        <i class="fa-solid fa-user-gear text-gray-400 w-5"></i> Profile & Settings
+                    </button>
+                    
+                    <div class="pt-4 border-t border-gray-800">
+                        <p class="px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Simulations</p>
+                        <button onclick="switchTab('error-403')" data-tab="error-403" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-gray-800">
+                            <i class="fa-solid fa-lock w-4"></i> Test 403 Forbidden
+                        </button>
+                        <button onclick="switchTab('error-404')" data-tab="error-404" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-amber-400 hover:bg-gray-800">
+                            <i class="fa-solid fa-triangle-exclamation w-4"></i> Test 404 Package
+                        </button>
+                    </div>
+                </nav>
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="p-4 border-t border-gray-800 text-xs text-gray-500 flex flex-col gap-2">
+                <button onclick="resetDemoData()" class="w-full py-1.5 px-3 bg-red-900/30 hover:bg-red-900/50 text-red-300 border border-red-800/40 rounded text-center transition-all">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> Reset Demo Data
+                </button>
+                <div class="flex justify-between items-center text-[10px] text-gray-400">
+                    <span>TrackPro System v2.4</span>
+                    <span class="text-green-400"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Online</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
+
+            <!-- 1. PUBLIC PACKAGE TRACKING VIEW -->
+            <section id="view-public-tracking" class="view-panel max-w-5xl mx-auto space-y-6">
+                <!-- Hero Tracker Header -->
+                <div class="bg-gradient-to-br from-deepnavy via-darkslate to-gray-900 text-white rounded-2xl p-6 sm:p-10 shadow-xl relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-10 translate-x-10 -translate-y-10 pointer-events-none">
+                        <i class="fa-solid fa-boxes-packing text-[260px] text-amber-500"></i>
+                    </div>
+                    <div class="relative z-10 max-w-2xl">
+                        <span class="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-4 inline-block">Real-Time Dispatch Engine</span>
+                        <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight mb-3">Track Your Package Anywhere</h1>
+                        <p class="text-gray-300 text-sm sm:text-base mb-6">Enter your TrackPro shipping ID to see live updates, estimated delivery dates, and current courier location logs.</p>
+                        
+                        <!-- Search Box -->
+                        <form onsubmit="handlePublicSearch(event)" class="flex flex-col sm:flex-row gap-2 bg-white/10 backdrop-blur-md p-2 rounded-xl border border-white/20">
+                            <div class="relative flex-1">
+                                <i class="fa-solid fa-barcode absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+                                <input type="text" id="publicSearchInput" placeholder="Enter Tracking ID (e.g. TRK-1001)" class="w-full bg-white text-gray-900 pl-11 pr-4 py-3 rounded-lg text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-semibold" required>
+                            </div>
+                            <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-extrabold px-6 py-3 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-amber-500/20">
+                                <i class="fa-solid fa-magnifying-glass"></i> Track Package
+                            </button>
+                        </form>
+
+                        <!-- Quick Suggestions -->
+                        <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-300">
+                            <span class="text-gray-400">Quick Test IDs:</span>
+                            <button onclick="quickSearch('TRK-1001')" class="bg-white/10 hover:bg-amber-500 hover:text-deepnavy px-2.5 py-1 rounded-md transition-all font-mono">TRK-1001</button>
+                            <button onclick="quickSearch('TRK-1002')" class="bg-white/10 hover:bg-amber-500 hover:text-deepnavy px-2.5 py-1 rounded-md transition-all font-mono">TRK-1002</button>
+                            <button onclick="quickSearch('TRK-1003')" class="bg-white/10 hover:bg-amber-500 hover:text-deepnavy px-2.5 py-1 rounded-md transition-all font-mono">TRK-1003</button>
+                            <button onclick="quickSearch('TRK-1004')" class="bg-white/10 hover:bg-amber-500 hover:text-deepnavy px-2.5 py-1 rounded-md transition-all font-mono">TRK-1004</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tracking Results Box -->
+                <div id="publicSearchResultContainer" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+                    <!-- Default Initial State -->
+                    <div id="trackingPlaceholder" class="text-center py-12 text-gray-400">
+                        <i class="fa-solid fa-box-open text-5xl mb-3 text-amber-400"></i>
+                        <p class="text-base font-semibold text-gray-600">No Tracking ID Queried Yet</p>
+                        <p class="text-xs">Select one of the quick test IDs above or enter a valid tracking code to query the system.</p>
+                    </div>
+
+                    <!-- Live Dynamic Tracking Content (Loaded via JS) -->
+                    <div id="trackingDetailsCard" class="hidden space-y-8">
+                        <!-- Top Header Info Bar -->
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-100">
+                            <div>
+                                <div class="flex items-center gap-3">
+                                    <h2 id="resTrackingId" class="text-2xl font-black text-gray-900 font-mono">TRK-1001</h2>
+                                    <span id="resStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-100 text-amber-800">In Transit</span>
+                                </div>
+                                <p id="resPackageDesc" class="text-sm text-gray-500 mt-1">High-end Electronics & Accessories</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="printTrackingSummary()" class="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-700 flex items-center gap-2 transition-all">
+                                    <i class="fa-solid fa-print"></i> Print Receipt
+                                </button>
+                                <button onclick="exportSinglePackageCSV()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-deepnavy rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow">
+                                    <i class="fa-solid fa-file-export"></i> Export PDF Summary
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Timeline Stepper -->
+                        <div class="py-4">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Delivery Progression</h3>
+                            <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0">
+                                <!-- Progress Bar Background for Desktop -->
+                                <div class="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gray-200 w-full z-0"></div>
+                                <div id="timelineProgressFill" class="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-amber-500 transition-all duration-500 z-0" style="width: 50%;"></div>
+
+                                <!-- Timeline Node 1: Pending -->
+                                <div class="step-node flex md:flex-col items-center gap-3 md:gap-2 z-10 bg-white pr-2 md:pr-0">
+                                    <div id="step-node-pending" class="w-10 h-10 rounded-full bg-amber-500 text-deepnavy flex items-center justify-center font-bold text-sm shadow-md">
+                                        <i class="fa-solid fa-clipboard-check"></i>
+                                    </div>
+                                    <div class="text-left md:text-center">
+                                        <p class="text-xs font-bold text-gray-900">Order Placed</p>
+                                        <p id="timeStepPending" class="text-[11px] text-gray-400">Oct 20, 09:00 AM</p>
+                                    </div>
+                                </div>
+
+                                <!-- Timeline Node 2: In Transit -->
+                                <div class="step-node flex md:flex-col items-center gap-3 md:gap-2 z-10 bg-white pr-2 md:pr-0">
+                                    <div id="step-node-transit" class="w-10 h-10 rounded-full bg-amber-500 text-deepnavy flex items-center justify-center font-bold text-sm shadow-md">
+                                        <i class="fa-solid fa-truck-moving"></i>
+                                    </div>
+                                    <div class="text-left md:text-center">
+                                        <p class="text-xs font-bold text-gray-900">In Transit</p>
+                                        <p id="timeStepTransit" class="text-[11px] text-gray-400">Oct 21, 02:30 PM</p>
+                                    </div>
+                                </div>
+
+                                <!-- Timeline Node 3: Out for Delivery -->
+                                <div class="step-node flex md:flex-col items-center gap-3 md:gap-2 z-10 bg-white pr-2 md:pr-0">
+                                    <div id="step-node-out" class="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm">
+                                        <i class="fa-solid fa-person-shelter"></i>
+                                    </div>
+                                    <div class="text-left md:text-center">
+                                        <p class="text-xs font-bold text-gray-400">Out for Delivery</p>
+                                        <p id="timeStepOut" class="text-[11px] text-gray-400">Pending</p>
+                                    </div>
+                                </div>
+
+                                <!-- Timeline Node 4: Delivered -->
+                                <div class="step-node flex md:flex-col items-center gap-3 md:gap-2 z-10 bg-white">
+                                    <div id="step-node-delivered" class="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm">
+                                        <i class="fa-solid fa-house-chimney-check"></i>
+                                    </div>
+                                    <div class="text-left md:text-center">
+                                        <p class="text-xs font-bold text-gray-400">Delivered</p>
+                                        <p id="timeStepDelivered" class="text-[11px] text-gray-400">Pending</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sender & Receiver Grid (Masked Protected Info) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50/50 rounded-xl p-5 border border-amber-100">
+                            <div>
+                                <h4 class="text-xs font-extrabold text-amber-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user-ninja"></i> Sender (Protected Info)
+                                </h4>
+                                <p id="resSenderName" class="text-sm font-bold text-gray-800">TechCorp Logistics Inc.</p>
+                                <p id="resSenderAddr" class="text-xs text-gray-600 mt-1">Warehouse 4B, Industrial Zone, CA</p>
+                                <p class="text-xs text-gray-400 mt-1"><i class="fa-solid fa-lock text-[10px]"></i> Contact details masked for privacy</p>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-extrabold text-amber-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-location-dot"></i> Recipient & Destination
+                                </h4>
+                                <p id="resReceiverName" class="text-sm font-bold text-gray-800">Johnathan Doe</p>
+                                <p id="resReceiverAddr" class="text-xs text-gray-600 mt-1">742 Evergreen Terrace, Springfield</p>
+                                <p id="resCourierAssigned" class="text-xs font-semibold text-amber-700 mt-1"><i class="fa-solid fa-user-shield"></i> Assigned Courier: Alex Smith</p>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Event Logs -->
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Audit History Logs</h3>
+                            <div id="resEventLogsList" class="space-y-3">
+                                <!-- Dynamic logs -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. SYSTEM DASHBOARD (ANALYTICS & METRICS) -->
+            <section id="view-dashboard" class="view-panel hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-black text-gray-900">Operations Dashboard</h1>
+                        <p class="text-xs sm:text-sm text-gray-500">Real-time overview of active delivery pipelines and courier metrics.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openAddPackageModal()" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition-all shadow">
+                            <i class="fa-solid fa-plus"></i> New Package
+                        </button>
+                        <button onclick="exportCSVData()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition-all shadow">
+                            <i class="fa-solid fa-download"></i> Export All Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stat Cards Grid -->
+                <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center text-gray-500 text-xs font-bold mb-1">
+                            <span>TOTAL</span>
+                            <i class="fa-solid fa-boxes-stacked text-blue-500"></i>
+                        </div>
+                        <p id="statTotal" class="text-2xl font-black text-gray-900">0</p>
+                        <span class="text-[10px] text-gray-400">All registered packages</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center text-gray-500 text-xs font-bold mb-1">
+                            <span>PENDING</span>
+                            <i class="fa-solid fa-clock text-yellow-500"></i>
+                        </div>
+                        <p id="statPending" class="text-2xl font-black text-yellow-600">0</p>
+                        <span class="text-[10px] text-gray-400">Awaiting dispatch</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center text-gray-500 text-xs font-bold mb-1">
+                            <span>IN TRANSIT</span>
+                            <i class="fa-solid fa-truck-fast text-amber-500"></i>
+                        </div>
+                        <p id="statTransit" class="text-2xl font-black text-amber-600">0</p>
+                        <span class="text-[10px] text-gray-400">On the road</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center text-gray-500 text-xs font-bold mb-1">
+                            <span>OUT FOR DEL.</span>
+                            <i class="fa-solid fa-person-biking text-purple-500"></i>
+                        </div>
+                        <p id="statOut" class="text-2xl font-black text-purple-600">0</p>
+                        <span class="text-[10px] text-gray-400">Final mile</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center text-gray-500 text-xs font-bold mb-1">
+                            <span>DELIVERED</span>
+                            <i class="fa-solid fa-circle-check text-green-500"></i>
+                        </div>
+                        <p id="statDelivered" class="text-2xl font-black text-green-600">0</p>
+                        <span class="text-[10px] text-green-600 font-semibold"><i class="fa-solid fa-arrow-trend-up"></i> 98.2%</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center text-gray-500 text-xs font-bold mb-1">
+                            <span>FAILED</span>
+                            <i class="fa-solid fa-triangle-exclamation text-red-500"></i>
+                        </div>
+                        <p id="statFailed" class="text-2xl font-black text-red-600">0</p>
+                        <span class="text-[10px] text-gray-400">Exceptions/Holds</span>
+                    </div>
+                </div>
+
+                <!-- Interactive Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Delivery Trend Chart -->
+                    <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-gray-800 text-sm">7-Day Delivery Volume Trend</h3>
+                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Weekly View</span>
+                        </div>
+                        <div class="h-64 relative">
+                            <canvas id="chartDeliveryTrend"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Status Breakdown Donut Chart -->
+                    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="font-bold text-gray-800 text-sm mb-4">Package Status Distribution</h3>
+                        <div class="h-64 relative">
+                            <canvas id="chartStatusBreakdown"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activities Table -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-800 text-sm">Recent Package Movements</h3>
+                        <button onclick="switchTab('packages')" class="text-xs text-amber-600 hover:underline font-semibold">View All Packages →</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                                <tr>
+                                    <th class="p-3.5">Tracking ID</th>
+                                    <th class="p-3.5">Recipient</th>
+                                    <th class="p-3.5">Status</th>
+                                    <th class="p-3.5">Courier</th>
+                                    <th class="p-3.5">Est. Delivery</th>
+                                    <th class="p-3.5 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboardRecentTable" class="divide-y divide-gray-100">
+                                <!-- Dynamic JS content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. PACKAGE MANAGEMENT (ADMIN / STAFF FULL CRUD) -->
+            <section id="view-packages" class="view-panel hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-black text-gray-900">Package Inventory</h1>
+                        <p class="text-xs sm:text-sm text-gray-500">Manage dispatch records, assign drivers, and update status history logs.</p>
+                    </div>
+                    <button onclick="openAddPackageModal()" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow">
+                        <i class="fa-solid fa-plus"></i> Add New Package
+                    </button>
+                </div>
+
+                <!-- Search & Filters Toolbar -->
+                <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="relative w-full md:w-80">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text" id="pkgSearchInput" oninput="filterPackages()" placeholder="Search ID, sender, recipient..." class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <span class="text-xs text-gray-500 font-medium">Status:</span>
+                        <select id="pkgStatusFilter" onchange="filterPackages()" class="bg-gray-50 border border-gray-200 text-xs rounded-lg px-3 py-2 outline-none font-semibold text-gray-700">
+                            <option value="ALL">All Statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="In Transit">In Transit</option>
+                            <option value="Out for Delivery">Out for Delivery</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Failed Delivery">Failed Delivery</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Packages Data Table -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-100">
+                                <tr>
+                                    <th class="p-3.5">Tracking ID</th>
+                                    <th class="p-3.5">Sender</th>
+                                    <th class="p-3.5">Recipient</th>
+                                    <th class="p-3.5">Assigned Courier</th>
+                                    <th class="p-3.5">Status</th>
+                                    <th class="p-3.5">Est. Date</th>
+                                    <th class="p-3.5 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="packagesMasterTable" class="divide-y divide-gray-100">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. COURIER MANAGEMENT -->
+            <section id="view-couriers" class="view-panel hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-black text-gray-900">Courier Team Directory</h1>
+                        <p class="text-xs sm:text-sm text-gray-500">Monitor driver workloads, ratings, and active assignments.</p>
+                    </div>
+                    <button onclick="openAddCourierModal()" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow">
+                        <i class="fa-solid fa-user-plus"></i> Register New Courier
+                    </button>
+                </div>
+
+                <!-- Courier Grid -->
+                <div id="courierGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Dynamic courier cards -->
+                </div>
+            </section>
+
+            <!-- 5. DELIVERY ROUTE VISUALIZER -->
+            <section id="view-routes" class="view-panel hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-black text-gray-900">Active Delivery Routes</h1>
+                        <p class="text-xs sm:text-sm text-gray-500">Simulated live map vectors and waypoint progression tracker.</p>
+                    </div>
+                </div>
+
+                <!-- Visualizer Box -->
+                <div class="bg-darkslate text-white p-6 rounded-2xl shadow-lg border border-gray-800 space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-gray-800">
+                        <div>
+                            <span class="text-xs text-amber-400 font-mono">ROUTE #R-8092 • EXPRESS HUB</span>
+                            <h3 class="text-lg font-extrabold text-white">Central Hub → Northern District Route</h3>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="bg-green-500/20 text-green-400 border border-green-500/30 px-2.5 py-1 rounded-full"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Active Driver: Alex Smith</span>
+                        </div>
+                    </div>
+
+                    <!-- Animated Map Vector Canvas -->
+                    <div class="relative w-full h-64 bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex items-center justify-center">
+                        <svg class="w-full h-full" viewBox="0 0 800 250">
+                            <!-- Curved Route Path -->
+                            <path id="routePath" d="M 100 125 C 250 50, 350 200, 500 125 C 600 80, 680 150, 700 125" fill="none" stroke="#374151" stroke-width="6" stroke-linecap="round"/>
+                            <path d="M 100 125 C 250 50, 350 200, 500 125 C 600 80, 680 150, 700 125" fill="none" stroke="#f59e0b" stroke-width="4" stroke-dasharray="10 10" stroke-linecap="round" class="pulse-effect"/>
+
+                            <!-- Stops Nodes -->
+                            <!-- Stop 1 -->
+                            <g transform="translate(100, 125)">
+                                <circle r="12" fill="#10B981" />
+                                <text x="0" y="28" fill="#ffffff" font-size="10" text-anchor="middle" font-weight="bold">Central Hub</text>
+                            </g>
+                            <!-- Stop 2 -->
+                            <g transform="translate(320, 140)">
+                                <circle r="10" fill="#f59e0b" />
+                                <text x="0" y="-18" fill="#d1d5db" font-size="10" text-anchor="middle">Waypoint A</text>
+                            </g>
+                            <!-- Stop 3 -->
+                            <g transform="translate(500, 125)">
+                                <circle r="10" fill="#f59e0b" />
+                                <text x="0" y="25" fill="#d1d5db" font-size="10" text-anchor="middle">Waypoint B</text>
+                            </g>
+                            <!-- Stop 4: Final Destination -->
+                            <g transform="translate(700, 125)">
+                                <circle r="12" fill="#EF4444" />
+                                <text x="0" y="28" fill="#ffffff" font-size="10" text-anchor="middle" font-weight="bold">District Drop</text>
+                            </g>
+
+                            <!-- Animated Vehicle Icon -->
+                            <g transform="translate(320, 140)" class="transition-all duration-1000">
+                                <circle r="16" fill="#f59e0b" opacity="0.3" class="pulse-effect" />
+                                <circle r="8" fill="#f59e0b" />
+                            </g>
+                        </svg>
+
+                        <!-- Floating Live Info Badge -->
+                        <div class="absolute bottom-4 left-4 bg-gray-800/90 backdrop-blur-md px-3 py-2 rounded-lg border border-gray-700 text-xs space-y-1">
+                            <p class="text-amber-400 font-bold"><i class="fa-solid fa-location-crosshairs mr-1"></i> Live GPS Telemetry</p>
+                            <p class="text-gray-300">Avg Speed: 42 km/h • Est. Arrival: 35 mins</p>
+                        </div>
+                    </div>
+
+                    <!-- Waypoints Summary List -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div class="bg-gray-800/60 p-3 rounded-lg border border-gray-700">
+                            <span class="text-gray-400">Total Distance</span>
+                            <p class="text-base font-bold text-white">48.5 km</p>
+                        </div>
+                        <div class="bg-gray-800/60 p-3 rounded-lg border border-gray-700">
+                            <span class="text-gray-400">Assigned Packages</span>
+                            <p class="text-base font-bold text-white">14 Shipments</p>
+                        </div>
+                        <div class="bg-gray-800/60 p-3 rounded-lg border border-gray-700">
+                            <span class="text-gray-400">Route Efficiency Rating</span>
+                            <p class="text-base font-bold text-green-400">96.4% (Optimal)</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. REPORTS & ANALYTICS -->
+            <section id="view-reports" class="view-panel hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-black text-gray-900">Reports & Export Data</h1>
+                        <p class="text-xs sm:text-sm text-gray-500">Generate CSV exports, performance summaries, and audit records.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportCSVData()" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow">
+                            <i class="fa-solid fa-file-csv"></i> Download CSV Master Report
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Report Filters Bar -->
+                <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Start Date</label>
+                        <input type="date" value="2026-10-01" class="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">End Date</label>
+                        <input type="date" value="2026-10-31" class="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="triggerReportFilter()" class="w-full bg-darkslate hover:bg-black text-white font-bold py-2 px-4 rounded-lg transition-all">
+                            Apply Report Filter
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
+                        <div class="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-xl">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-gray-800">On-Time Delivery Rate</h4>
+                        <p class="text-3xl font-black text-gray-900 my-1">98.4%</p>
+                        <p class="text-xs text-green-600 font-semibold"><i class="fa-solid fa-arrow-up"></i> +1.2% from last month</p>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
+                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-xl">
+                            <i class="fa-solid fa-stopwatch"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-gray-800">Avg. Transit Duration</h4>
+                        <p class="text-3xl font-black text-gray-900 my-1">1.8 Days</p>
+                        <p class="text-xs text-blue-600 font-semibold">Exceeding SLA Target</p>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
+                        <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-xl">
+                            <i class="fa-solid fa-face-smile"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-gray-800">Customer CSAT Score</h4>
+                        <p class="text-3xl font-black text-gray-900 my-1">4.9 / 5.0</p>
+                        <p class="text-xs text-purple-600 font-semibold">Based on 1,240 reviews</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. PROFILE & SETTINGS -->
+            <section id="view-profile" class="view-panel hidden space-y-6 max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="bg-gradient-to-r from-darkslate to-deepnavy p-6 text-white flex items-center gap-4">
+                        <div class="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center font-black text-deepnavy text-2xl">
+                            A
+                        </div>
+                        <div>
+                            <h2 id="profileDisplayName" class="text-xl font-bold">Admin User</h2>
+                            <p id="profileDisplayRole" class="text-xs text-amber-400">Role: Administrator (Full Access)</p>
+                        </div>
+                    </div>
+                    <div class="p-6 space-y-6">
+                        <form onsubmit="handleProfileSave(event)" class="space-y-4 text-xs">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block font-bold text-gray-700 mb-1">Full Name</label>
+                                    <input type="text" id="profName" value="System Administrator" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-gray-700 mb-1">Email Address</label>
+                                    <input type="email" id="profEmail" value="admin@trackpro.com" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">Notification Preferences</label>
+                                <div class="space-y-2">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked class="rounded text-amber-500 focus:ring-amber-500">
+                                        <span>Email alerts on delivery status exception / failure</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked class="rounded text-amber-500 focus:ring-amber-500">
+                                        <span>Real-time dispatch system logs</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-6 py-2.5 rounded-lg transition-all shadow">
+                                Save Profile Changes
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 8. SIMULATION ERROR PAGES (403 FORBIDDEN & 404 NOT FOUND) -->
+            <!-- 403 Forbidden -->
+            <section id="view-error-403" class="view-panel hidden text-center py-16 max-w-md mx-auto space-y-4">
+                <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-3xl font-black">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h1 class="text-3xl font-black text-gray-900">403 - Access Denied</h1>
+                <p class="text-xs text-gray-500">You do not have administrative permissions to view or edit package inventory records in Customer mode.</p>
+                <button onclick="handleRoleChange('Admin')" class="bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow">
+                    Switch to Admin Role
+                </button>
+            </section>
+
+            <!-- 404 Package Not Found -->
+            <section id="view-error-404" class="view-panel hidden text-center py-16 max-w-md mx-auto space-y-4">
+                <div class="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-3xl font-black">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h1 class="text-3xl font-black text-gray-900">404 - Package Not Found</h1>
+                <p class="text-xs text-gray-500">The tracking ID queried does not exist in the TrackPro database. Please verify the code and retry.</p>
+                <button onclick="switchTab('public-tracking')" class="bg-darkslate hover:bg-black text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow">
+                    Back to Tracking Search
+                </button>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL: ADD / EDIT PACKAGE -->
+    <div id="modalAddPackage" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h3 class="font-bold text-gray-900 text-base" id="modalPkgTitle">Add New Package Record</h3>
+                <button onclick="closeModal('modalAddPackage')" class="text-gray-400 hover:text-gray-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <form id="formPackage" onsubmit="handleSavePackage(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="pkgFormId">
+                
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Tracking ID</label>
+                    <input type="text" id="pkgFormTrackingId" readonly class="w-full p-2.5 bg-gray-100 border border-gray-200 rounded-lg font-mono font-bold text-gray-600">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Sender Name *</label>
+                        <input type="text" id="pkgFormSender" required class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Recipient Name *</label>
+                        <input type="text" id="pkgFormReceiver" required class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Destination Address *</label>
+                    <input type="text" id="pkgFormAddress" required class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Status</label>
+                        <select id="pkgFormStatus" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-semibold">
+                            <option value="Pending">Pending</option>
+                            <option value="In Transit">In Transit</option>
+                            <option value="Out for Delivery">Out for Delivery</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Failed Delivery">Failed Delivery</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Assign Courier</label>
+                        <select id="pkgFormCourier" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                            <!-- Dynamic courier options -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Package Weight (kg)</label>
+                        <input type="number" step="0.1" id="pkgFormWeight" value="2.5" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">Est. Delivery Date</label>
+                        <input type="date" id="pkgFormEstDate" required class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Description / Notes</label>
+                    <textarea id="pkgFormDesc" rows="2" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500" placeholder="Brief description of package contents..."></textarea>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('modalAddPackage')" class="px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-lg font-bold text-gray-600">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold rounded-lg shadow">Save Package</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: LOGIN / AUTHENTICATION -->
+    <div id="modalAuth" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h3 class="font-bold text-gray-900 text-base">TrackPro Portal Login</h3>
+                <button onclick="closeModal('modalAuth')" class="text-gray-400 hover:text-gray-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleAuthLogin(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Email / Username</label>
+                    <input type="email" id="authEmail" value="admin@trackpro.com" required class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Password</label>
+                    <input type="password" id="authPassword" value="••••••••" required class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Simulated Login Role</label>
+                    <select id="authRoleSelect" class="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-700">
+                        <option value="Admin">Admin</option>
+                        <option value="Staff">Staff / Courier</option>
+                        <option value="Customer">Customer</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-deepnavy font-bold rounded-lg shadow transition-all">
+                    Sign In to Dashboard
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Printable Receipt / PDF Container (Hidden in normal screen) -->
+    <div id="printSection" class="hidden p-8 space-y-4 font-sans text-gray-900">
+        <div class="border-b-2 border-amber-500 pb-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black">TrackPro Official Receipt</h1>
+                <p class="text-xs text-gray-500">Verified Delivery Tracking Record</p>
+            </div>
+            <span id="printTrackingCode" class="text-xl font-mono font-bold text-amber-600">TRK-1001</span>
+        </div>
+        <div class="grid grid-cols-2 gap-4 text-xs">
+            <div>
+                <p class="font-bold">Sender Details:</p>
+                <p id="printSender"></p>
+            </div>
+            <div>
+                <p class="font-bold">Recipient Details:</p>
+                <p id="printReceiver"></p>
+            </div>
+        </div>
+        <div class="border-t border-b border-gray-200 py-3 text-xs">
+            <p><strong>Package Status:</strong> <span id="printStatus"></span></p>
+            <p><strong>Estimated Delivery:</strong> <span id="printEstDate"></span></p>
+        </div>
+        <p class="text-[10px] text-gray-400 text-center pt-6">TrackPro Logistics Inc. • Official Document</p>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // Default Mock Data Set
+        const DEFAULT_PACKAGES = [
+            {
+                id: 'TRK-1001',
+                sender: 'TechCorp Logistics',
+                senderAddr: 'Warehouse 4B, CA',
+                receiver: 'Johnathan Doe',
+                receiverAddr: '742 Evergreen Terrace, Springfield',
+                desc: 'Gaming Laptop & Peripherals',
+                weight: '3.2',
+                status: 'In Transit',
+                courier: 'Alex Smith',
+                estDate: '2026-10-22',
+                logs: [
+                    { time: '2026-10-20 09:00 AM', text: 'Package processed at Central Dispatch Hub.' },
+                    { time: '2026-10-21 02:30 PM', text: 'In transit - En route to Regional Sorting Center.' }
+                ]
+            },
+            {
+                id: 'TRK-1002',
+                sender: 'FashionHub Direct',
+                senderAddr: 'Distribution Depot, NY',
+                receiver: 'Sarah Jenkins',
+                receiverAddr: '1204 Pine Street, Seattle, WA',
+                desc: 'Winter Apparel & Footwear',
+                weight: '1.8',
+                status: 'Out for Delivery',
+                courier: 'Maria Garcia',
+                estDate: '2026-10-20',
+                logs: [
+                    { time: '2026-10-19 10:15 AM', text: 'Shipment received.' },
+                    { time: '2026-10-20 08:00 AM', text: 'Out for delivery with courier Maria Garcia.' }
+                ]
+            },
+            {
+                id: 'TRK-1003',
+                sender: 'Global Electronics',
+                senderAddr: 'Export Dock 12, FL',
+                receiver: 'Michael Brown',
+                receiverAddr: '883 Oak Lane, Austin, TX',
+                desc: 'Smart Home Hub & Sensors',
+                weight: '0.9',
+                status: 'Delivered',
+                courier: 'Alex Smith',
+                estDate: '2026-10-19',
+                logs: [
+                    { time: '2026-10-18 11:00 AM', text: 'Package dispatched.' },
+                    { time: '2026-10-19 03:45 PM', text: 'Delivered and signed by M. Brown.' }
+                ]
+            },
+            {
+                id: 'TRK-1004',
+                sender: 'BioHealth Pharma',
+                senderAddr: 'Cold Storage Unit 2, IL',
+                receiver: 'St. Jude Health Clinic',
+                receiverAddr: '500 Hospital Way, Chicago, IL',
+                desc: 'Medical Supplies (Temperature Sensitive)',
+                weight: '4.5',
+                status: 'Pending',
+                courier: 'Unassigned',
+                estDate: '2026-10-24',
+                logs: [
+                    { time: '2026-10-20 08:30 AM', text: 'Order created and pending pickup.' }
+                ]
+            },
+            {
+                id: 'TRK-1005',
+                sender: 'Apex Parts Ltd.',
+                senderAddr: 'Factory 9, OH',
+                receiver: 'David Miller',
+                receiverAddr: '404 Error Ave, Lost City',
+                desc: 'Replacement Engine Valves',
+                weight: '6.1',
+                status: 'Failed Delivery',
+                courier: 'David Lee',
+                estDate: '2026-10-19',
+                logs: [
+                    { time: '2026-10-19 01:00 PM', text: 'Delivery attempted. Recipient address incorrect.' }
+                ]
+            }
+        ];
+
+        const DEFAULT_COURIERS = [
+            { id: 1, name: 'Alex Smith', status: 'Active / On Duty', assignedCount: 2, rating: '4.9', phone: '+1 555-0192', avatar: 'AS' },
+            { id: 2, name: 'Maria Garcia', status: 'Active / On Duty', assignedCount: 1, rating: '4.8', phone: '+1 555-0184', avatar: 'MG' },
+            { id: 3, name: 'David Lee', status: 'Off Duty', assignedCount: 1, rating: '4.7', phone: '+1 555-0129', avatar: 'DL' }
+        ];
+
+        // System State
+        let packages = [];
+        let couriers = [];
+        let currentUserRole = 'Admin'; // Admin, Staff, Customer
+        let activeTab = 'public-tracking';
+        let chartTrendInstance = null;
+        let chartStatusInstance = null;
+
+        // Initialize App on DOM Ready
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStateFromStorage();
+            setupSidebarToggle();
+            renderCouriersGrid();
+            renderPackagesTable();
+            renderDashboardRecentTable();
+            updateDashboardMetrics();
+            initCharts();
+            populateCourierDropdown();
+            renderNotifications();
+        });
+
+        // Load or Reset Storage
+        function loadStateFromStorage() {
+            const storedPkg = localStorage.getItem('trackpro_packages');
+            const storedCour = localStorage.getItem('trackpro_couriers');
+            packages = storedPkg ? JSON.parse(storedPkg) : [...DEFAULT_PACKAGES];
+            couriers = storedCour ? JSON.parse(storedCour) : [...DEFAULT_COURIERS];
+            saveState();
+        }
+
+        function saveState() {
+            localStorage.setItem('trackpro_packages', JSON.stringify(packages));
+            localStorage.setItem('trackpro_couriers', JSON.stringify(couriers));
+        }
+
+        function resetDemoData() {
+            packages = [...DEFAULT_PACKAGES];
+            couriers = [...DEFAULT_COURIERS];
+            saveState();
+            location.reload();
+        }
+
+        // Sidebar Responsive Toggle
+        function setupSidebarToggle() {
+            const toggleBtn = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            toggleBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('-translate-x-full');
+            });
+        }
+
+        // Navigation Switcher
+        function switchTab(tabId) {
+            // Role enforcement check for Admin views
+            if ((tabId === 'packages' || tabId === 'routes') && currentUserRole === 'Customer') {
+                tabId = 'error-403';
+            }
+
+            activeTab = tabId;
+            document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
+            
+            const target = document.getElementById(`view-${tabId}`);
+            if (target) target.classList.remove('hidden');
+
+            // Highlight nav button
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if (btn.dataset.tab === tabId) {
+                    btn.classList.add('bg-gray-800', 'text-amber-400');
+                    btn.classList.remove('text-gray-300');
+                } else {
+                    btn.classList.remove('bg-gray-800', 'text-amber-400');
+                    btn.classList.add('text-gray-300');
+                }
+            });
+
+            // Refresh charts if entering dashboard
+            if (tabId === 'dashboard') {
+                updateDashboardMetrics();
+                refreshCharts();
+            }
+
+            // Close sidebar on mobile select
+            if (window.innerWidth < 1024) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            }
+        }
+
+        // Role Switcher Handler
+        function handleRoleChange(role) {
+            currentUserRole = role;
+            document.getElementById('roleSwitcher').value = role;
+            
+            const roleBadge = document.getElementById('sidebarUserRole');
+            const nameLabel = document.getElementById('sidebarUserName');
+            
+            if (role === 'Admin') {
+                roleBadge.innerText = 'Role: Admin';
+                nameLabel.innerText = 'Administrator';
+            } else if (role === 'Staff') {
+                roleBadge.innerText = 'Role: Courier Staff';
+                nameLabel.innerText = 'Staff Agent';
+            } else {
+                roleBadge.innerText = 'Role: Customer';
+                nameLabel.innerText = 'Public Guest';
+            }
+
+            showToast(`Switched view mode to: ${role}`, 'info');
+            switchTab(activeTab);
+        }
+
+        // 1. PUBLIC TRACKING SEARCH LOGIC
+        function handlePublicSearch(e) {
+            e.preventDefault();
+            const id = document.getElementById('publicSearchInput').value.trim().toUpperCase();
+            quickSearch(id);
+        }
+
+        function quickSearch(trackingId) {
+            document.getElementById('publicSearchInput').value = trackingId;
+            const pkg = packages.find(p => p.id.toUpperCase() === trackingId.toUpperCase());
+
+            const placeholder = document.getElementById('trackingPlaceholder');
+            const detailsCard = document.getElementById('trackingDetailsCard');
+
+            if (!pkg) {
+                showToast(`Tracking ID ${trackingId} not found in database.`, 'error');
+                switchTab('error-404');
+                return;
+            }
+
+            // Reveal Details
+            placeholder.classList.add('hidden');
+            detailsCard.classList.remove('hidden');
+
+            // Populate Card Data
+            document.getElementById('resTrackingId').innerText = pkg.id;
+            document.getElementById('resPackageDesc').innerText = pkg.desc;
+            document.getElementById('resStatusBadge').innerText = pkg.status;
+            document.getElementById('resStatusBadge').className = `px-3 py-1 rounded-full text-xs font-bold uppercase ${getStatusBadgeClass(pkg.status)}`;
+            
+            document.getElementById('resSenderName').innerText = pkg.sender;
+            document.getElementById('resSenderAddr').innerText = pkg.senderAddr;
+            document.getElementById('resReceiverName').innerText = pkg.receiver;
+            document.getElementById('resReceiverAddr').innerText = pkg.receiverAddr;
+            document.getElementById('resCourierAssigned').innerHTML = `<i class="fa-solid fa-user-shield"></i> Courier: ${pkg.courier || 'Unassigned'}`;
+
+            // Stepper Highlight logic
+            const statusOrder = ['Pending', 'In Transit', 'Out for Delivery', 'Delivered'];
+            const currentIndex = statusOrder.indexOf(pkg.status);
+
+            const fillWidth = pkg.status === 'Delivered' ? '100%' : pkg.status === 'Out for Delivery' ? '75%' : pkg.status === 'In Transit' ? '50%' : '25%';
+            document.getElementById('timelineProgressFill').style.width = fillWidth;
+
+            // Render Event Audit Logs
+            const logsContainer = document.getElementById('resEventLogsList');
+            logsContainer.innerHTML = pkg.logs.map(log => `
+                <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg text-xs border border-gray-100">
+                    <i class="fa-solid fa-circle-dot text-amber-500 mt-0.5"></i>
+                    <div>
+                        <p class="font-bold text-gray-800">${log.text}</p>
+                        <p class="text-[10px] text-gray-400">${log.time}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 2. DASHBOARD DATA & CHARTS
+        function updateDashboardMetrics() {
+            document.getElementById('statTotal').innerText = packages.length;
+            document.getElementById('statPending').innerText = packages.filter(p => p.status === 'Pending').length;
+            document.getElementById('statTransit').innerText = packages.filter(p => p.status === 'In Transit').length;
+            document.getElementById('statOut').innerText = packages.filter(p => p.status === 'Out for Delivery').length;
+            document.getElementById('statDelivered').innerText = packages.filter(p => p.status === 'Delivered').length;
+            document.getElementById('statFailed').innerText = packages.filter(p => p.status === 'Failed Delivery').length;
+        }
+
+        function renderDashboardRecentTable() {
+            const table = document.getElementById('dashboardRecentTable');
+            table.innerHTML = packages.slice(0, 5).map(p => `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="p-3.5 font-mono font-bold text-amber-600">${p.id}</td>
+                    <td class="p-3.5 font-medium text-gray-800">${p.receiver}</td>
+                    <td class="p-3.5"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${getStatusBadgeClass(p.status)}">${p.status}</span></td>
+                    <td class="p-3.5 text-gray-600">${p.courier}</td>
+                    <td class="p-3.5 text-gray-500">${p.estDate}</td>
+                    <td class="p-3.5 text-right">
+                        <button onclick="quickSearch('${p.id}'); switchTab('public-tracking');" class="text-xs text-amber-600 hover:underline font-bold">Track</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function initCharts() {
+            // Trend Line Chart
+            const ctxTrend = document.getElementById('chartDeliveryTrend').getContext('2d');
+            chartTrendInstance = new Chart(ctxTrend, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Packages Dispatched',
+                        data: [12, 19, 15, 25, 22, 30, 28],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Donut Chart
+            const ctxStatus = document.getElementById('chartStatusBreakdown').getContext('2d');
+            chartStatusInstance = new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pending', 'In Transit', 'Out for Delivery', 'Delivered', 'Failed'],
+                    datasets: [{
+                        data: [
+                            packages.filter(p => p.status === 'Pending').length,
+                            packages.filter(p => p.status === 'In Transit').length,
+                            packages.filter(p => p.status === 'Out for Delivery').length,
+                            packages.filter(p => p.status === 'Delivered').length,
+                            packages.filter(p => p.status === 'Failed Delivery').length
+                        ],
+                        backgroundColor: ['#eab308', '#f59e0b', '#a855f7', '#22c55e', '#ef4444']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function refreshCharts() {
+            if (chartStatusInstance) {
+                chartStatusInstance.data.datasets[0].data = [
+                    packages.filter(p => p.status === 'Pending').length,
+                    packages.filter(p => p.status === 'In Transit').length,
+                    packages.filter(p => p.status === 'Out for Delivery').length,
+                    packages.filter(p => p.status === 'Delivered').length,
+                    packages.filter(p => p.status === 'Failed Delivery').length
+                ];
+                chartStatusInstance.update();
+            }
+        }
+
+        // 3. PACKAGE CRUD DATA TABLE
+        function renderPackagesTable() {
+            const table = document.getElementById('packagesMasterTable');
+            table.innerHTML = packages.map(p => `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="p-3.5 font-mono font-bold text-amber-600">${p.id}</td>
+                    <td class="p-3.5 font-medium text-gray-700">${p.sender}</td>
+                    <td class="p-3.5 font-medium text-gray-700">${p.receiver}</td>
+                    <td class="p-3.5 text-gray-600">${p.courier || 'Unassigned'}</td>
+                    <td class="p-3.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusBadgeClass(p.status)}">${p.status}</span></td>
+                    <td class="p-3.5 text-gray-500">${p.estDate}</td>
+                    <td class="p-3.5 text-right space-x-2">
+                        <button onclick="editPackage('${p.id}')" class="text-blue-600 hover:text-blue-800 font-bold"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deletePackage('${p.id}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterPackages() {
+            const query = document.getElementById('pkgSearchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('pkgStatusFilter').value;
+
+            const filtered = packages.filter(p => {
+                const matchesQuery = p.id.toLowerCase().includes(query) || p.sender.toLowerCase().includes(query) || p.receiver.toLowerCase().includes(query);
+                const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
+                return matchesQuery && matchesStatus;
+            });
+
+            const table = document.getElementById('packagesMasterTable');
+            table.innerHTML = filtered.map(p => `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="p-3.5 font-mono font-bold text-amber-600">${p.id}</td>
+                    <td class="p-3.5 font-medium text-gray-700">${p.sender}</td>
+                    <td class="p-3.5 font-medium text-gray-700">${p.receiver}</td>
+                    <td class="p-3.5 text-gray-600">${p.courier || 'Unassigned'}</td>
+                    <td class="p-3.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusBadgeClass(p.status)}">${p.status}</span></td>
+                    <td class="p-3.5 text-gray-500">${p.estDate}</td>
+                    <td class="p-3.5 text-right space-x-2">
+                        <button onclick="editPackage('${p.id}')" class="text-blue-600 hover:text-blue-800 font-bold"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deletePackage('${p.id}')" class="text-red-600 hover:text-red-800 font-bold"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openAddPackageModal() {
+            document.getElementById('modalPkgTitle').innerText = 'Add New Package Record';
+            document.getElementById('pkgFormId').value = '';
+            document.getElementById('pkgFormTrackingId').value = 'TRK-' + Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('pkgFormSender').value = '';
+            document.getElementById('pkgFormReceiver').value = '';
+            document.getElementById('pkgFormAddress').value = '';
+            document.getElementById('pkgFormStatus').value = 'Pending';
+            document.getElementById('pkgFormEstDate').value = '2026-10-25';
+            document.getElementById('pkgFormDesc').value = '';
+            document.getElementById('modalAddPackage').classList.remove('hidden');
+        }
+
+        function editPackage(id) {
+            const pkg = packages.find(p => p.id === id);
+            if (!pkg) return;
+
+            document.getElementById('modalPkgTitle').innerText = 'Edit Package Details';
+            document.getElementById('pkgFormId').value = pkg.id;
+            document.getElementById('pkgFormTrackingId').value = pkg.id;
+            document.getElementById('pkgFormSender').value = pkg.sender;
+            document.getElementById('pkgFormReceiver').value = pkg.receiver;
+            document.getElementById('pkgFormAddress').value = pkg.receiverAddr;
+            document.getElementById('pkgFormStatus').value = pkg.status;
+            document.getElementById('pkgFormCourier').value = pkg.courier;
+            document.getElementById('pkgFormWeight').value = pkg.weight || '2.5';
+            document.getElementById('pkgFormEstDate').value = pkg.estDate;
+            document.getElementById('pkgFormDesc').value = pkg.desc;
+
+            document.getElementById('modalAddPackage').classList.remove('hidden');
+        }
+
+        function handleSavePackage(e) {
+            e.preventDefault();
+            const editId = document.getElementById('pkgFormId').value;
+            const trackingId = document.getElementById('pkgFormTrackingId').value;
+
+            const pkgData = {
+                id: trackingId,
+                sender: document.getElementById('pkgFormSender').value,
+                senderAddr: 'Central Hub',
+                receiver: document.getElementById('pkgFormReceiver').value,
+                receiverAddr: document.getElementById('pkgFormAddress').value,
+                desc: document.getElementById('pkgFormDesc').value || 'Standard Parcel',
+                weight: document.getElementById('pkgFormWeight').value,
+                status: document.getElementById('pkgFormStatus').value,
+                courier: document.getElementById('pkgFormCourier').value,
+                estDate: document.getElementById('pkgFormEstDate').value,
+                logs: [
+                    { time: new Date().toLocaleString(), text: `Package status set to ${document.getElementById('pkgFormStatus').value}` }
+                ]
+            };
+
+            if (editId) {
+                const idx = packages.findIndex(p => p.id === editId);
+                if (idx !== -1) packages[idx] = { ...packages[idx], ...pkgData };
+                showToast(`Package ${trackingId} updated successfully.`, 'success');
+            } else {
+                packages.unshift(pkgData);
+                showToast(`New package ${trackingId} registered.`, 'success');
+            }
+
+            saveState();
+            closeModal('modalAddPackage');
+            renderPackagesTable();
+            renderDashboardRecentTable();
+            updateDashboardMetrics();
+        }
+
+        function deletePackage(id) {
+            if (confirm(`Are you sure you want to delete package record ${id}?`)) {
+                packages = packages.filter(p => p.id !== id);
+                saveState();
+                renderPackagesTable();
+                renderDashboardRecentTable();
+                updateDashboardMetrics();
+                showToast(`Package ${id} deleted from database.`, 'info');
+            }
+        }
+
+        // 4. COURIERS DIRECTORY
+        function renderCouriersGrid() {
+            const grid = document.getElementById('courierGrid');
+            grid.innerHTML = couriers.map(c => `
+                <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between space-y-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-amber-500 text-deepnavy font-black rounded-xl flex items-center justify-center text-base">
+                            ${c.avatar}
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-900 text-sm">${c.name}</h3>
+                            <p class="text-xs text-gray-400">${c.phone}</p>
+                            <span class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold ${c.status.includes('Active') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">${c.status}</span>
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <span class="text-gray-400">Assigned Packages</span>
+                            <p class="font-bold text-gray-800">${c.assignedCount} Parcels</p>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">CSAT Rating</span>
+                            <p class="font-bold text-amber-600"><i class="fa-solid fa-star text-amber-400"></i> ${c.rating} / 5.0</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function populateCourierDropdown() {
+            const select = document.getElementById('pkgFormCourier');
+            select.innerHTML = couriers.map(c => `<option value="${c.name}">${c.name} (${c.status})</option>`).join('');
+        }
+
+        // CSV DATA EXPORT GENERATOR
+        function exportCSVData() {
+            let csv = 'Tracking ID,Sender,Recipient,Status,Courier,Est Delivery Date\n';
+            packages.forEach(p => {
+                csv += `"${p.id}","${p.sender}","${p.receiver}","${p.status}","${p.courier}","${p.estDate}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `TrackPro_Packages_Export_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+            showToast('CSV report generated and downloaded.', 'success');
+        }
+
+        function exportSinglePackageCSV() {
+            showToast('PDF Summary statement generated.', 'success');
+            window.print();
+        }
+
+        function printTrackingSummary() {
+            const currentId = document.getElementById('resTrackingId').innerText;
+            const pkg = packages.find(p => p.id === currentId);
+            if (!pkg) return;
+
+            document.getElementById('printTrackingCode').innerText = pkg.id;
+            document.getElementById('printSender').innerText = `${pkg.sender} (${pkg.senderAddr})`;
+            document.getElementById('printReceiver').innerText = `${pkg.receiver} (${pkg.receiverAddr})`;
+            document.getElementById('printStatus').innerText = pkg.status;
+            document.getElementById('printEstDate').innerText = pkg.estDate;
+
+            document.getElementById('printSection').classList.remove('hidden');
+            window.print();
+            document.getElementById('printSection').classList.add('hidden');
+        }
+
+        // UTILITY HELPERS
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'Pending': return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+                case 'In Transit': return 'bg-amber-100 text-amber-800 border border-amber-200';
+                case 'Out for Delivery': return 'bg-purple-100 text-purple-800 border border-purple-200';
+                case 'Delivered': return 'bg-green-100 text-green-800 border border-green-200';
+                case 'Failed Delivery': return 'bg-red-100 text-red-800 border border-red-200';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function openAuthModal() { document.getElementById('modalAuth').classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        function handleAuthLogin(e) {
+            e.preventDefault();
+            const role = document.getElementById('authRoleSelect').value;
+            handleRoleChange(role);
+            closeModal('modalAuth');
+            showToast(`Logged in successfully as ${role}`, 'success');
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-darkslate';
+            
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-xs font-semibold pointer-events-auto transform transition-all duration-300 opacity-100`;
+            toast.innerHTML = `
+                <i class="fa-solid fa-circle-info text-amber-400 text-base"></i>
+                <span class="flex-1">${msg}</span>
+                <button onclick="this.parentElement.remove()" class="text-gray-300 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function renderNotifications() {
+            const notifList = document.getElementById('notifList');
+            notifList.innerHTML = `
+                <div class="p-3 hover:bg-gray-50 transition-colors">
+                    <p class="font-bold text-gray-800">Package TRK-1002 Dispatched</p>
+                    <p class="text-gray-400 text-[10px]">Courier Maria Garcia accepted shipment.</p>
+                </div>
+                <div class="p-3 hover:bg-gray-50 transition-colors">
+                    <p class="font-bold text-gray-800">Delivery Exception</p>
+                    <p class="text-gray-400 text-[10px]">TRK-1005 address invalid notice.</p>
+                </div>
+            `;
+        }
+
+        function toggleNotifications() {
+            document.getElementById('notifDropdown').classList.toggle('hidden');
+        }
+
+        function clearNotifications() {
+            document.getElementById('notifBadge').innerText = '0';
+            showToast('All notifications marked as read', 'info');
+        }
+
+        function handleProfileSave(e) {
+            e.preventDefault();
+            showToast('User profile settings updated.', 'success');
+        }
+
+        function triggerReportFilter() {
+            showToast('Filtered report stats compiled.', 'info');
+        }
+    </script>
+</body>
+</html>
